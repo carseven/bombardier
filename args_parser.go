@@ -34,6 +34,7 @@ type kingpinParser struct {
 	stream            bool
 	certPath          string
 	keyPath           string
+	proxyUrl          string
 	rate              *nullableUint64
 	clientType        clientTyp
 
@@ -57,6 +58,7 @@ func newKingpinParser() argsParser {
 		stream:       false,
 		certPath:     "",
 		keyPath:      "",
+		proxyUrl:     "",
 		insecure:     false,
 		url:          "",
 		rate:         new(nullableUint64),
@@ -102,6 +104,10 @@ func newKingpinParser() argsParser {
 	app.Flag("key", "Path to the client's TLS Certificate Private Key").
 		Default("").
 		StringVar(&kparser.keyPath)
+	app.Flag("proxy", "URL of the HTTP proxy").
+		Short('x').
+		Default("").
+		StringVar(&kparser.proxyUrl)
 	app.Flag("insecure",
 		"Controls whether a client verifies the server's certificate"+
 			" chain and host name").
@@ -222,6 +228,7 @@ func (k *kingpinParser) parse(args []string) (config, error) {
 		bodyFilePath:      k.bodyFilePath,
 		stream:            k.stream,
 		keyPath:           k.keyPath,
+		proxyUrl:          k.proxyUrl,
 		certPath:          k.certPath,
 		printLatencies:    k.latencies,
 		insecure:          k.insecure,

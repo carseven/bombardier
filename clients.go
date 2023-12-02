@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/fasthttpproxy"
 )
 
 type client interface {
@@ -19,20 +20,17 @@ type client interface {
 type bodyStreamProducer func() (io.ReadCloser, error)
 
 type clientOpts struct {
-	HTTP2 bool
-
-	maxConns          uint64
-	timeout           time.Duration
-	tlsConfig         *tls.Config
-	disableKeepAlives bool
-
-	requestURL *url.URL
-	headers    *headersList
-	method     string
-
-	body    *string
-	bodProd bodyStreamProducer
-
+	HTTP2                   bool
+	maxConns                uint64
+	timeout                 time.Duration
+	tlsConfig               *tls.Config
+	disableKeepAlives       bool
+	requestURL              *url.URL
+	headers                 *headersList
+	method                  string
+	proxyUrl                string
+	body                    *string
+	bodProd                 bodyStreamProducer
 	bytesRead, bytesWritten *int64
 }
 
@@ -48,6 +46,8 @@ type fasthttpClient struct {
 }
 
 func newFastHTTPClient(opts *clientOpts) client {
+	var dial fasthttp.DialFunc
+
 	c := new(fasthttpClient)
 	uri := fasthttp.AcquireURI()
 	if err := uri.Parse(
@@ -58,16 +58,30 @@ func newFastHTTPClient(opts *clientOpts) client {
 		panic(err)
 	}
 	c.uri = uri
+
+	if opts.proxyUrl != "" {
+		if strings.Contains(opts.proxyUrl, "socks5") {
+			urlProxy := strings.Replace(opts.proxyUrl, "socks5://", "", 1)
+			dial = fasthttpproxy.FasthttpSocksDialer(urlProxy)
+		} else {
+			urlProxy := strings.Replace(opts.proxyUrl, "https://", "", 1)
+			urlProxy = strings.Replace(urlProxy, "http://", "", 1)
+			dial = fasthttpproxy.FasthttpHTTPDialer(urlProxy)
+		}
+	} else {
+		dial = fasthttpDialFunc(
+			opts.bytesRead, opts.bytesWritten,
+			opts.timeout,
+		)
+	}
+
 	c.client = &fasthttp.Client{
 		MaxConnsPerHost:               int(opts.maxConns),
 		ReadTimeout:                   opts.timeout,
 		WriteTimeout:                  opts.timeout,
 		DisableHeaderNamesNormalizing: true,
 		TLSConfig:                     opts.tlsConfig,
-		Dial: fasthttpDialFunc(
-			opts.bytesRead, opts.bytesWritten,
-			opts.timeout,
-		),
+		Dial:                          dial,
 	}
 	c.headers = headersToFastHTTPHeaders(opts.headers)
 	c.method, c.body = opts.method, opts.body

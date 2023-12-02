@@ -135,6 +135,7 @@ func newBombardier(c config) (*bombardier, error) {
 
 		headers:      c.headers,
 		requestURL:   c.url,
+		proxyUrl:     c.proxyUrl,
 		method:       c.method,
 		body:         pbody,
 		bodProd:      bsp,
